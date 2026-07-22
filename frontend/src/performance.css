@@ -6,5 +6,5 @@
 .rail-dish-image img,.dish-img img,.origin-visual img{content-visibility:auto}
 .map iframe{filter:none}
 .philosophy-image,.signature-image,.experience-bg,.about-image{background-attachment:scroll}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero-bg,.hero-orbit:after,.marquee div,.home-menu-track{animation:none!important}.dish-img img,.rail-dish-image img,.origin-visual img{transition:none!important}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero-bg,.hero-orbit:after,.home-menu-track{animation:none!important}.marquee div{animation-duration:42s}.dish-img img,.rail-dish-image img,.origin-visual img{transition:none!important}}
 @media(max-width:700px),(pointer:coarse){.hero-bg{animation:none}.hero-orbit:after{animation:none}.home-menu-track{animation-duration:52s}.overlay,.cart-backdrop{backdrop-filter:none}}
