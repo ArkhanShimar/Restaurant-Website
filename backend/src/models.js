@@ -38,7 +38,7 @@ const orderSchema = new Schema({
   customer: { type: Schema.Types.ObjectId, ref: 'User' },
   customerName: String, phone: String, email: String,
   type: { type: String, enum: ['delivery', 'pickup', 'dine-in'], default: 'pickup' },
-  table: String, address: String,
+  table: String, address: String, scheduledFor: Date, guests: { type: Number, default: 1 },
   items: [orderLineSchema],
   subtotal: Number, discount: { type: Number, default: 0 }, tax: Number, deliveryFee: Number, total: Number,
   promoCode: String,

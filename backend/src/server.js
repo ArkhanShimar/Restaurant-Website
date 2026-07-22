@@ -51,6 +51,17 @@ app.post('/api/promotions/validate', asyncHandler(async (req, res) => {
   res.json({ promotion: promo, discount: Math.min(discount, req.body.subtotal) });
 }));
 
+const diningTables = [{ id: '1', capacity: 2 }, { id: '2', capacity: 2 }, { id: '3', capacity: 4 }, { id: '4', capacity: 4 }, { id: '5', capacity: 6 }, { id: '6', capacity: 8 }, { id: '7', capacity: 10 }];
+app.get('/api/tables/availability', asyncHandler(async (req, res) => {
+  const date = new Date(String(req.query.date));
+  const guests = Math.max(1, Number(req.query.guests) || 1);
+  if (Number.isNaN(date.getTime())) return res.status(400).json({ message: 'A valid date and time is required' });
+  const windowStart = new Date(date.getTime() - 90 * 60 * 1000);
+  const windowEnd = new Date(date.getTime() + 90 * 60 * 1000);
+  const occupied = await Order.distinct('table', { type: 'dine-in', scheduledFor: { $gte: windowStart, $lte: windowEnd }, status: { $nin: ['cancelled', 'served'] } });
+  const suitable = diningTables.filter(table => table.capacity >= guests);
+  res.json({ available: suitable.filter(table => !occupied.includes(table.id)).map(table => table.id), requestedFor: date, guests });
+}));
 app.post('/api/orders', optionalAuth, asyncHandler(async (req, res) => {
   if (!Array.isArray(req.body.items) || !req.body.items.length) return res.status(400).json({ message: 'Your order is empty' });
   const ids = req.body.items.map(item => item.menuItem);
@@ -73,7 +84,15 @@ app.post('/api/orders', optionalAuth, asyncHandler(async (req, res) => {
   }
   const tax = (subtotal - discount) * 0.1;
   const deliveryFee = req.body.type === 'delivery' ? 450 : 0;
-  const count = await Order.countDocuments();
+  if (req.body.type === 'dine-in') {
+    const scheduledFor = new Date(req.body.scheduledFor);
+    const table = diningTables.find(item => item.id === req.body.table);
+    if (!table || Number(req.body.guests || 1) > table.capacity || Number.isNaN(scheduledFor.getTime())) return res.status(400).json({ message: 'Please select an available table, date, and time' });
+    const windowStart = new Date(scheduledFor.getTime() - 90 * 60 * 1000);
+    const windowEnd = new Date(scheduledFor.getTime() + 90 * 60 * 1000);
+    const conflict = await Order.exists({ type: 'dine-in', table: table.id, scheduledFor: { $gte: windowStart, $lte: windowEnd }, status: { $nin: ['cancelled', 'served'] } });
+    if (conflict) return res.status(409).json({ message: 'That table was just reserved. Please check availability again.' });
+  }  const count = await Order.countDocuments();
   const order = await Order.create({ ...req.body, items, customer: req.user?.id, subtotal, discount, tax, deliveryFee, total: subtotal - discount + tax + deliveryFee, orderNumber: `VL-${String(count + 1).padStart(5, '0')}` });
   res.status(201).json(order);
 }));
