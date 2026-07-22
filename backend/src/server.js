@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from './config.js';
-import { User, MenuItem, Order, Promotion, Reservation } from './models.js';
+import { User, MenuItem, Order, Promotion, Reservation, Inquiry } from './models.js';
 import { auth, optionalAuth, permit, asyncHandler } from './middleware.js';
 
 const app = express();
@@ -80,10 +80,10 @@ app.post('/api/orders', optionalAuth, asyncHandler(async (req, res) => {
     const quantity = Math.max(1, Math.min(20, Number(line.quantity) || 1)); subtotal += price * quantity;
     return { menuItem: dish.id, name: dish.name, price, quantity, variant: variant?.name, addOns: allowedAddOns, spiceLevel: line.spiceLevel, notes: line.notes };
   });
-  let discount = 0;
+  let discount = 0; let appliedPromotion = null;
   if (req.body.promoCode) {
     const promo = await Promotion.findOne({ code: req.body.promoCode.toUpperCase(), active: true });
-    const now = new Date(); const valid = promo && subtotal >= promo.minOrder && (!promo.startsAt || promo.startsAt <= now) && (!promo.endsAt || promo.endsAt >= now) && (!promo.usageLimit || promo.usageCount < promo.usageLimit); if (!valid) return res.status(400).json({ message: 'This promotion is no longer valid' }); discount = Math.min(subtotal, promo.type === 'percentage' ? subtotal * promo.value / 100 : promo.value); promo.usageCount++; await promo.save();
+    const now = new Date(); const valid = promo && subtotal >= promo.minOrder && (!promo.startsAt || promo.startsAt <= now) && (!promo.endsAt || promo.endsAt >= now) && (!promo.usageLimit || promo.usageCount < promo.usageLimit); if (!valid) return res.status(400).json({ message: 'This promotion is no longer valid' }); discount = Math.min(subtotal, promo.type === 'percentage' ? subtotal * promo.value / 100 : promo.value); appliedPromotion = promo;
   }
   const tax = (subtotal - discount) * 0.1;
   const deliveryFee = req.body.type === 'delivery' ? 450 : 0;
@@ -98,16 +98,30 @@ app.post('/api/orders', optionalAuth, asyncHandler(async (req, res) => {
   }
   const orderNumber = `VL-${Date.now().toString().slice(-9)}`;
   const order = await Order.create({ ...req.body, items, customer: req.user?.id, subtotal, discount, tax, deliveryFee, total: subtotal - discount + tax + deliveryFee, orderNumber });
+  if (appliedPromotion) { appliedPromotion.usageCount += 1; await appliedPromotion.save(); }
   res.status(201).json(order);
 }));
 app.get('/api/orders/mine', auth, asyncHandler(async (req, res) => res.json(await Order.find({ customer: req.user.id }).sort({ createdAt: -1 }))));
 app.get('/api/orders', auth, permit('admin', 'staff'), asyncHandler(async (req, res) => res.json(await Order.find(req.query.status ? { status: req.query.status } : {}).sort({ createdAt: -1 }).limit(200))));
-app.patch('/api/orders/:id/status', auth, permit('admin', 'staff'), asyncHandler(async (req, res) => res.json(await Order.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true, runValidators: true }))));
+app.patch('/api/orders/:id/status', auth, permit('admin', 'staff'), asyncHandler(async (req, res) => {
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  const allowed = { pending: ['confirmed', 'cancelled'], confirmed: ['preparing', 'cancelled'], preparing: ['ready', 'cancelled'], ready: ['served', 'delivered'], served: [], delivered: [], cancelled: [] };
+  if (!allowed[order.status]?.includes(req.body.status)) return res.status(400).json({ message: 'Invalid order status transition' });
+  order.status = req.body.status; await order.save(); res.json(order);
+}));
 
-app.post('/api/reservations', asyncHandler(async (req, res) => res.status(201).json(await Reservation.create(req.body))));
+app.post('/api/reservations', asyncHandler(async (req, res) => {
+  const date = new Date(req.body.date);
+  if (!req.body.name || !req.body.phone || Number.isNaN(date.getTime()) || date <= new Date()) return res.status(400).json({ message: 'Name, phone, and a future date are required' });
+  res.status(201).json(await Reservation.create({ ...req.body, date }));
+}));
 app.get('/api/reservations', auth, permit('admin', 'staff'), asyncHandler(async (_req, res) => res.json(await Reservation.find().sort({ date: 1 }))));
-app.patch('/api/reservations/:id', auth, permit('admin', 'staff'), asyncHandler(async (req, res) => res.json(await Reservation.findByIdAndUpdate(req.params.id, req.body, { new: true }))));
+app.patch('/api/reservations/:id', auth, permit('admin', 'staff'), asyncHandler(async (req, res) => res.json(await Reservation.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }))));
 
+app.post('/api/inquiries', asyncHandler(async (req, res) => res.status(201).json(await Inquiry.create(req.body))));
+app.get('/api/inquiries', auth, permit('admin', 'staff'), asyncHandler(async (_req, res) => res.json(await Inquiry.find().sort({ createdAt: -1 }))));
+app.patch('/api/inquiries/:id', auth, permit('admin', 'staff'), asyncHandler(async (req, res) => res.json(await Inquiry.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }))));
 app.post('/api/chat', asyncHandler(async (req, res) => {
   const text = String(req.body.message || '').toLowerCase();
   const menu = await MenuItem.find({ available: true });

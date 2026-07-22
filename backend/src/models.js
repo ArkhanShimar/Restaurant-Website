@@ -64,9 +64,18 @@ const reservationSchema = new Schema({
   status: { type: String, enum: ['pending', 'confirmed', 'seated', 'completed', 'cancelled'], default: 'pending' },
 }, { timestamps: true });
 
+const inquirySchema = new Schema({
+  name: { type: String, required: true, trim: true },
+  email: { type: String, required: true, trim: true, lowercase: true },
+  phone: String,
+  type: { type: String, default: 'General enquiry' },
+  message: { type: String, required: true, trim: true },
+  status: { type: String, enum: ['new', 'in-progress', 'resolved'], default: 'new' },
+}, { timestamps: true });
 export const User = mongoose.models.User || model('User', userSchema);
 export const MenuItem = mongoose.models.MenuItem || model('MenuItem', menuItemSchema);
 export const Order = mongoose.models.Order || model('Order', orderSchema);
 export const Promotion = mongoose.models.Promotion || model('Promotion', promotionSchema);
 export const Reservation = mongoose.models.Reservation || model('Reservation', reservationSchema);
+export const Inquiry = mongoose.models.Inquiry || model('Inquiry', inquirySchema);
 
