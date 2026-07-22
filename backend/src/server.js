@@ -6,6 +6,8 @@ import mongoose from 'mongoose';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
+import multer from 'multer';
+import { v2 as cloudinary } from 'cloudinary';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from './config.js';
@@ -13,6 +15,8 @@ import { User, MenuItem, Order, Promotion, Reservation, Inquiry } from './models
 import { auth, optionalAuth, permit, asyncHandler } from './middleware.js';
 
 const app = express();
+cloudinary.config({ cloud_name: config.cloudinary.cloudName, api_key: config.cloudinary.apiKey, api_secret: config.cloudinary.apiSecret });
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: (_req, file, callback) => callback(file.mimetype.startsWith('image/') ? null : Object.assign(new Error('Only image files are allowed'), { status: 400 }), file.mimetype.startsWith('image/')) });
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.set('trust proxy', 1);
 app.use(cors({
@@ -26,6 +30,24 @@ app.use(express.json({ limit: '1mb' }));
 app.use(morgan(config.production ? 'combined' : 'dev'));
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'veloura-api' }));
+
+app.post('/api/uploads/image', auth, permit('admin'), imageUpload.single('image'), asyncHandler(async (req, res) => {
+  if (!config.cloudinary.cloudName || !config.cloudinary.apiKey || !config.cloudinary.apiSecret) return res.status(503).json({ message: 'Cloudinary is not configured' });
+  if (!req.file) return res.status(400).json({ message: 'Choose an image to upload' });
+  const folders = { menu: 'veloura/menu', promotions: 'veloura/promotions', gallery: 'veloura/gallery' };
+  const folder = folders[req.body.folder] || folders.gallery;
+  const result = await new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream({ folder, resource_type: 'image', transformation: [{ width: 1800, height: 1800, crop: 'limit' }, { quality: 'auto', fetch_format: 'auto' }] }, (error, uploaded) => error ? reject(error) : resolve(uploaded));
+    stream.end(req.file.buffer);
+  });
+  res.status(201).json({ url: result.secure_url, publicId: result.public_id, width: result.width, height: result.height });
+}));
+
+app.delete('/api/uploads/image', auth, permit('admin'), asyncHandler(async (req, res) => {
+  if (!req.body.publicId?.startsWith('veloura/')) return res.status(400).json({ message: 'Invalid image identifier' });
+  await cloudinary.uploader.destroy(req.body.publicId);
+  res.status(204).end();
+}));
 
 app.post('/api/auth/register', asyncHandler(async (req, res) => {
   const { name, email, password, phone } = req.body;
@@ -48,14 +70,14 @@ app.get('/api/menu', asyncHandler(async (req, res) => {
   res.json(await MenuItem.find(query).sort({ featured: -1, category: 1, name: 1 }));
 }));
 app.post('/api/menu', auth, permit('admin'), asyncHandler(async (req, res) => res.status(201).json(await MenuItem.create(req.body))));
-app.patch('/api/menu/:id', auth, permit('admin'), asyncHandler(async (req, res) => res.json(await MenuItem.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }))));
-app.delete('/api/menu/:id', auth, permit('admin'), asyncHandler(async (req, res) => { await MenuItem.findByIdAndDelete(req.params.id); res.status(204).end(); }));
+app.patch('/api/menu/:id', auth, permit('admin'), asyncHandler(async (req, res) => { const previous = await MenuItem.findById(req.params.id); const item = await MenuItem.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }); if (!item) return res.status(404).json({ message: 'Menu item not found' }); if (previous?.imagePublicId && previous.imagePublicId !== item.imagePublicId) cloudinary.uploader.destroy(previous.imagePublicId).catch(() => {}); res.json(item); }));
+app.delete('/api/menu/:id', auth, permit('admin'), asyncHandler(async (req, res) => { const item = await MenuItem.findByIdAndDelete(req.params.id); if (item?.imagePublicId) cloudinary.uploader.destroy(item.imagePublicId).catch(() => {}); res.status(204).end(); }));
 
 app.get('/api/promotions', asyncHandler(async (_req, res) => { const now = new Date(); res.json(await Promotion.find({ active: true, $and: [{ $or: [{ startsAt: null }, { startsAt: { $lte: now } }] }, { $or: [{ endsAt: null }, { endsAt: { $gte: now } }] }], $expr: { $or: [{ $not: ['$usageLimit'] }, { $lt: ['$usageCount', '$usageLimit'] }] } }).sort({ createdAt: -1 })); }));
 app.post('/api/promotions', auth, permit('admin'), asyncHandler(async (req, res) => res.status(201).json(await Promotion.create(req.body))));
 app.get('/api/admin/promotions', auth, permit('admin'), asyncHandler(async (_req, res) => res.json(await Promotion.find().sort({ createdAt: -1 }))));
-app.patch('/api/promotions/:id', auth, permit('admin'), asyncHandler(async (req, res) => res.json(await Promotion.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }))));
-app.delete('/api/promotions/:id', auth, permit('admin'), asyncHandler(async (req, res) => { await Promotion.findByIdAndDelete(req.params.id); res.status(204).end(); }));
+app.patch('/api/promotions/:id', auth, permit('admin'), asyncHandler(async (req, res) => { const previous = await Promotion.findById(req.params.id); const promotion = await Promotion.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }); if (!promotion) return res.status(404).json({ message: 'Promotion not found' }); if (previous?.imagePublicId && previous.imagePublicId !== promotion.imagePublicId) cloudinary.uploader.destroy(previous.imagePublicId).catch(() => {}); res.json(promotion); }));
+app.delete('/api/promotions/:id', auth, permit('admin'), asyncHandler(async (req, res) => { const promotion = await Promotion.findByIdAndDelete(req.params.id); if (promotion?.imagePublicId) cloudinary.uploader.destroy(promotion.imagePublicId).catch(() => {}); res.status(204).end(); }));
 app.post('/api/promotions/validate', asyncHandler(async (req, res) => {
   const promo = await Promotion.findOne({ code: req.body.code?.toUpperCase(), active: true });
   const now = new Date();

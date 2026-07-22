@@ -18,6 +18,7 @@ const menuItemSchema = new Schema({
   category: { type: String, required: true },
   price: { type: Number, required: true, min: 0 },
   image: String,
+  imagePublicId: String,
   dietary: [String],
   featured: { type: Boolean, default: false },
   available: { type: Boolean, default: true },
@@ -51,7 +52,7 @@ const orderSchema = new Schema({
 
 const promotionSchema = new Schema({
   code: { type: String, required: true, unique: true, uppercase: true },
-  title: { type: String, required: true }, description: String,
+  title: { type: String, required: true }, description: String, image: String, imagePublicId: String,
   type: { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
   value: { type: Number, required: true }, minOrder: { type: Number, default: 0 },
   active: { type: Boolean, default: true }, startsAt: Date, endsAt: Date, usageLimit: Number, usageCount: { type: Number, default: 0 },

@@ -90,3 +90,8 @@ Copy the final Vercel production URL into Render's `CLIENT_URL`, then restart/re
 ### 4. Bootstrap production data once
 
 In a Render Shell, set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`, then run `npm run seed`. The seed is idempotent: it does not erase an existing menu.
+## Cloudinary media storage
+
+Admin menu and promotion forms upload images through the authenticated Render API. The Cloudinary API secret is never sent to Vercel or the browser. Assets are stored under `veloura/menu`, `veloura/promotions`, and `veloura/gallery`, capped at 10 MB, and transformed for automatic format/quality with a maximum 1800 × 1800 size. Replaced and deleted record images are removed from Cloudinary after the database update succeeds.
+
+Set all three `CLOUDINARY_*` values only in Render. Never create `VITE_CLOUDINARY_API_SECRET` or expose the secret in frontend variables.

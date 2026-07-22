@@ -15,4 +15,9 @@ export const config = {
   clientUrls: splitList(process.env.CLIENT_URL || 'http://localhost:5173'),
   serviceChargeRate: Math.max(0, Number(process.env.SERVICE_CHARGE_RATE ?? 0.1)),
   deliveryFee: Math.max(0, Number(process.env.DELIVERY_FEE ?? 450)),
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
+    apiKey: process.env.CLOUDINARY_API_KEY || '',
+    apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+  },
 };

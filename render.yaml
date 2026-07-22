@@ -16,6 +16,12 @@ services:
         generateValue: true
       - key: CLIENT_URL
         sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
       - key: SERVICE_CHARGE_RATE
         value: "0.10"
       - key: DELIVERY_FEE
