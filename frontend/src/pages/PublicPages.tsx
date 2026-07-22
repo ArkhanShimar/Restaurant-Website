@@ -13,7 +13,7 @@ function PublicNav() {
 }
 
 function PageHero({ eyebrow, title, image }: { eyebrow: string; title: React.ReactNode; image: string }) {
-  return <header className="page-hero" style={{ backgroundImage: `linear-gradient(90deg,rgba(5,5,4,.82),rgba(5,5,4,.2)),url(${image})` }}><motion.div initial={{ opacity: 0, y: 25 }} animate={{ opacity: 1, y: 0 }}><span className="eyebrow">{eyebrow}</span><h1>{title}</h1></motion.div></header>;
+  return <header className="page-hero" style={{ backgroundImage: `url(${image})` }}><div className="page-hero-shade"/><div className="page-hero-frame"/><motion.div className="page-hero-copy" initial={{ opacity: 0, y: 35 }} animate={{ opacity: 1, y: 0 }} transition={{duration:.9}}><div className="page-hero-kicker"><span className="eyebrow">{eyebrow}</span><i/></div><h1>{title}</h1><div className="page-hero-meta"><span>VELOURA / COLOMBO</span><span>SCROLL TO EXPLORE ↓</span></div></motion.div><div className="page-hero-mark">V</div></header>;
 }
 
 export function MenuPage() {
