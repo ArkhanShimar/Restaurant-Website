@@ -41,8 +41,11 @@ app.post('/api/menu', auth, permit('admin'), asyncHandler(async (req, res) => re
 app.patch('/api/menu/:id', auth, permit('admin'), asyncHandler(async (req, res) => res.json(await MenuItem.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }))));
 app.delete('/api/menu/:id', auth, permit('admin'), asyncHandler(async (req, res) => { await MenuItem.findByIdAndDelete(req.params.id); res.status(204).end(); }));
 
-app.get('/api/promotions', asyncHandler(async (_req, res) => res.json(await Promotion.find({ active: true }).sort({ createdAt: -1 }))));
+app.get('/api/promotions', asyncHandler(async (_req, res) => { const now = new Date(); res.json(await Promotion.find({ active: true, $and: [{ $or: [{ startsAt: null }, { startsAt: { $lte: now } }] }, { $or: [{ endsAt: null }, { endsAt: { $gte: now } }] }], $expr: { $or: [{ $not: ['$usageLimit'] }, { $lt: ['$usageCount', '$usageLimit'] }] } }).sort({ createdAt: -1 })); }));
 app.post('/api/promotions', auth, permit('admin'), asyncHandler(async (req, res) => res.status(201).json(await Promotion.create(req.body))));
+app.get('/api/admin/promotions', auth, permit('admin'), asyncHandler(async (_req, res) => res.json(await Promotion.find().sort({ createdAt: -1 }))));
+app.patch('/api/promotions/:id', auth, permit('admin'), asyncHandler(async (req, res) => res.json(await Promotion.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true }))));
+app.delete('/api/promotions/:id', auth, permit('admin'), asyncHandler(async (req, res) => { await Promotion.findByIdAndDelete(req.params.id); res.status(204).end(); }));
 app.post('/api/promotions/validate', asyncHandler(async (req, res) => {
   const promo = await Promotion.findOne({ code: req.body.code?.toUpperCase(), active: true });
   const now = new Date();
@@ -80,7 +83,7 @@ app.post('/api/orders', optionalAuth, asyncHandler(async (req, res) => {
   let discount = 0;
   if (req.body.promoCode) {
     const promo = await Promotion.findOne({ code: req.body.promoCode.toUpperCase(), active: true });
-    if (promo && subtotal >= promo.minOrder) { discount = promo.type === 'percentage' ? subtotal * promo.value / 100 : promo.value; promo.usageCount++; await promo.save(); }
+    const now = new Date(); const valid = promo && subtotal >= promo.minOrder && (!promo.startsAt || promo.startsAt <= now) && (!promo.endsAt || promo.endsAt >= now) && (!promo.usageLimit || promo.usageCount < promo.usageLimit); if (!valid) return res.status(400).json({ message: 'This promotion is no longer valid' }); discount = Math.min(subtotal, promo.type === 'percentage' ? subtotal * promo.value / 100 : promo.value); promo.usageCount++; await promo.save();
   }
   const tax = (subtotal - discount) * 0.1;
   const deliveryFee = req.body.type === 'delivery' ? 450 : 0;
@@ -92,8 +95,9 @@ app.post('/api/orders', optionalAuth, asyncHandler(async (req, res) => {
     const windowEnd = new Date(scheduledFor.getTime() + 90 * 60 * 1000);
     const conflict = await Order.exists({ type: 'dine-in', table: table.id, scheduledFor: { $gte: windowStart, $lte: windowEnd }, status: { $nin: ['cancelled', 'served'] } });
     if (conflict) return res.status(409).json({ message: 'That table was just reserved. Please check availability again.' });
-  }  const count = await Order.countDocuments();
-  const order = await Order.create({ ...req.body, items, customer: req.user?.id, subtotal, discount, tax, deliveryFee, total: subtotal - discount + tax + deliveryFee, orderNumber: `VL-${String(count + 1).padStart(5, '0')}` });
+  }
+  const orderNumber = `VL-${Date.now().toString().slice(-9)}`;
+  const order = await Order.create({ ...req.body, items, customer: req.user?.id, subtotal, discount, tax, deliveryFee, total: subtotal - discount + tax + deliveryFee, orderNumber });
   res.status(201).json(order);
 }));
 app.get('/api/orders/mine', auth, asyncHandler(async (req, res) => res.json(await Order.find({ customer: req.user.id }).sort({ createdAt: -1 }))));
