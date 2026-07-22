@@ -15,10 +15,15 @@ const dishes = [
 ];
 
 await mongoose.connect(config.mongoUri);
-await MenuItem.deleteMany({}); await MenuItem.insertMany(dishes);
-for (const account of [
-  { name: 'Veloura Admin', email: 'admin@veloura.lk', password: 'VelouraAdmin123!', role: 'admin' },
-  { name: 'Kitchen Staff', email: 'staff@veloura.lk', password: 'VelouraStaff123!', role: 'staff' },
-]) await User.findOneAndUpdate({ email: account.email }, { ...account, password: await bcrypt.hash(account.password, 12) }, { upsert: true });
+if (await MenuItem.countDocuments() === 0) await MenuItem.insertMany(dishes);
+else console.log('Menu already contains data; sample dishes were not inserted.');
+
+const adminEmail = process.env.SEED_ADMIN_EMAIL || (config.production ? '' : 'admin@veloura.lk');
+const adminPassword = process.env.SEED_ADMIN_PASSWORD || (config.production ? '' : 'VelouraAdmin123!');
+if (!adminEmail || !adminPassword || adminPassword.length < 12) throw new Error('SEED_ADMIN_EMAIL and a 12+ character SEED_ADMIN_PASSWORD are required for production seeding');
+const accounts = [{ name: process.env.SEED_ADMIN_NAME || 'Veloura Admin', email: adminEmail, password: adminPassword, role: 'admin' }];
+if (process.env.SEED_STAFF_EMAIL && process.env.SEED_STAFF_PASSWORD) accounts.push({ name: process.env.SEED_STAFF_NAME || 'Kitchen Staff', email: process.env.SEED_STAFF_EMAIL, password: process.env.SEED_STAFF_PASSWORD, role: 'staff' });
+else if (!config.production) accounts.push({ name: 'Kitchen Staff', email: 'staff@veloura.lk', password: 'VelouraStaff123!', role: 'staff' });
+for (const account of accounts) await User.findOneAndUpdate({ email: account.email.toLowerCase() }, { ...account, email: account.email.toLowerCase(), password: await bcrypt.hash(account.password, 12) }, { upsert: true, runValidators: true });
 await Promotion.findOneAndUpdate({ code: 'VELVET15' }, { code: 'VELVET15', title: 'The Velvet Welcome', description: '15% from your first online experience.', type: 'percentage', value: 15, minOrder: 5000, active: true }, { upsert: true });
 console.log('Seed complete'); await mongoose.disconnect();

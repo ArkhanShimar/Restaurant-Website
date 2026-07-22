@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from './config.js';
@@ -11,9 +13,16 @@ import { auth, optionalAuth, permit, asyncHandler } from './middleware.js';
 
 const app = express();
 app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(cors({ origin: config.clientUrl, credentials: true }));
+app.set('trust proxy', 1);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || config.clientUrls.includes(origin)) return callback(null, true);
+    return callback(Object.assign(new Error('Origin is not allowed by CORS'), { status: 403 }));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '1mb' }));
-app.use(morgan('dev'));
+app.use(morgan(config.production ? 'combined' : 'dev'));
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'veloura-api' }));
 
@@ -85,8 +94,8 @@ app.post('/api/orders', optionalAuth, asyncHandler(async (req, res) => {
     const promo = await Promotion.findOne({ code: req.body.promoCode.toUpperCase(), active: true });
     const now = new Date(); const valid = promo && subtotal >= promo.minOrder && (!promo.startsAt || promo.startsAt <= now) && (!promo.endsAt || promo.endsAt >= now) && (!promo.usageLimit || promo.usageCount < promo.usageLimit); if (!valid) return res.status(400).json({ message: 'This promotion is no longer valid' }); discount = Math.min(subtotal, promo.type === 'percentage' ? subtotal * promo.value / 100 : promo.value); appliedPromotion = promo;
   }
-  const tax = (subtotal - discount) * 0.1;
-  const deliveryFee = req.body.type === 'delivery' ? 450 : 0;
+  const tax = (subtotal - discount) * config.serviceChargeRate;
+  const deliveryFee = req.body.type === 'delivery' ? config.deliveryFee : 0;
   if (req.body.type === 'dine-in') {
     const scheduledFor = new Date(req.body.scheduledFor);
     const table = diningTables.find(item => item.id === req.body.table);
@@ -162,6 +171,15 @@ app.get('/api/admin/stats', auth, permit('admin', 'staff'), asyncHandler(async (
   res.json({ ordersToday, activeOrders, reservations, revenue: revenue[0]?.total || 0 });
 }));
 
+if (config.production) {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const frontendDist = path.resolve(currentDir, '../../frontend/dist');
+  app.use(express.static(frontendDist, { maxAge: '1d', index: false }));
+  app.get('/{*splat}', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(frontendDist, 'index.html'));
+  });
+}
 app.use((err, _req, res, _next) => { console.error(err); res.status(err.status || 500).json({ message: err.code === 11000 ? 'That value already exists' : err.message || 'Unexpected server error' }); });
 
 mongoose.connect(config.mongoUri).then(() => app.listen(config.port, () => console.log(`Veloura API on :${config.port}`))).catch(err => { console.error('Database connection failed:', err.message); process.exit(1); });
