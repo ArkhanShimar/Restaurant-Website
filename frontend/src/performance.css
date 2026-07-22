@@ -1,0 +1,10 @@
+/* Rendering and scroll-performance pass */
+.hero-bg{filter:none;animation:hero-zoom-lite 18s ease-in-out infinite alternate;will-change:transform;transform:translateZ(0)}
+@keyframes hero-zoom-lite{from{transform:translateZ(0) scale(1)}to{transform:translateZ(0) scale(1.035)}}
+.page-hero:before{animation:none;filter:none;transform:translateZ(0)}
+.home-menu-track{transform:translateZ(0);backface-visibility:hidden;contain:layout paint style}
+.rail-dish-image img,.dish-img img,.origin-visual img{content-visibility:auto}
+.map iframe{filter:none}
+.philosophy-image,.signature-image,.experience-bg,.about-image{background-attachment:scroll}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hero-bg,.hero-orbit:after,.marquee div,.home-menu-track{animation:none!important}.dish-img img,.rail-dish-image img,.origin-visual img{transition:none!important}}
+@media(max-width:700px),(pointer:coarse){.hero-bg{animation:none}.hero-orbit:after{animation:none}.home-menu-track{animation-duration:52s}.overlay,.cart-backdrop{backdrop-filter:none}}
