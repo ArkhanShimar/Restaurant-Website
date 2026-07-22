@@ -2,6 +2,8 @@
 
 A full-stack MERN restaurant platform with a cinematic storefront, ordering, reservations, promotions, a menu-aware rules-based concierge, POS, kitchen display, billing records, and role-based operations.
 
+Live site: https://veloura-restaurant-lk.vercel.app/
+
 ## Local development
 
 1. Copy `backend/.env.example` to `backend/.env` and add a development MongoDB URI and JWT secret.
