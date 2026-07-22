@@ -61,3 +61,32 @@ Brand copy, editorial imagery, restaurant address/contact details, service hours
 - Never commit `.env` files; use the hosting platform’s secret manager.
 - Use unique production seed credentials, then avoid rerunning seed unless intentionally updating bootstrap data.
 - Enable provider-level HTTPS, backups, monitoring, and request/rate protection before accepting public traffic.
+## Render backend + Vercel frontend
+
+### 1. Deploy the API on Render
+
+Create a Render Blueprint from this repository; `render.yaml` configures the `veloura-api` service. Set these secret values in Render:
+
+- `MONGODB_URI`: the rotated Atlas connection string
+- `CLIENT_URL`: the final Vercel production origin, for example `https://veloura.vercel.app` (no trailing slash)
+- `JWT_SECRET`: Render generates this automatically; do not change it after users begin signing in
+
+Render uses `npm ci`, starts `npm start -w backend`, and checks `/api/health`. In Atlas Network Access, allow the Render service to connect. For an initial launch you may temporarily use `0.0.0.0/0`, but a narrower provider-compatible policy is preferable.
+
+### 2. Deploy the frontend on Vercel
+
+Import the same repository and set the Vercel **Root Directory** to `frontend`. The included `frontend/vercel.json` builds Vite and preserves React Router routes on direct refresh.
+
+Add this Vercel environment variable for Production, Preview, and Development as needed:
+
+- `VITE_API_URL=https://YOUR-RENDER-SERVICE.onrender.com/api`
+
+The value must include `/api` and must not end with a slash. Redeploy the frontend after changing any `VITE_*` variable because Vite embeds it at build time.
+
+### 3. Complete CORS
+
+Copy the final Vercel production URL into Render's `CLIENT_URL`, then restart/redeploy the Render service. Preview deployments use changing domains and are intentionally not accepted unless their exact origins are added to `CLIENT_URL` as a comma-separated list.
+
+### 4. Bootstrap production data once
+
+In a Render Shell, set `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`, then run `npm run seed`. The seed is idempotent: it does not erase an existing menu.

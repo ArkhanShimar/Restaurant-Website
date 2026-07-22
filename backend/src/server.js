@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import mongoose from 'mongoose';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from './config.js';
@@ -174,11 +175,13 @@ app.get('/api/admin/stats', auth, permit('admin', 'staff'), asyncHandler(async (
 if (config.production) {
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
   const frontendDist = path.resolve(currentDir, '../../frontend/dist');
-  app.use(express.static(frontendDist, { maxAge: '1d', index: false }));
-  app.get('/{*splat}', (req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
-    res.sendFile(path.join(frontendDist, 'index.html'));
-  });
+  if (existsSync(path.join(frontendDist, 'index.html'))) {
+    app.use(express.static(frontendDist, { maxAge: '1d', index: false }));
+    app.get('/{*splat}', (req, res, next) => {
+      if (req.path.startsWith('/api/')) return next();
+      res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+  } else app.get('/', (_req, res) => res.json({ service: 'veloura-api', health: '/api/health' }));
 }
 app.use((err, _req, res, _next) => { console.error(err); res.status(err.status || 500).json({ message: err.code === 11000 ? 'That value already exists' : err.message || 'Unexpected server error' }); });
 

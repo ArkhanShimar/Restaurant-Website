@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: veloura-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start -w backend
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: SERVICE_CHARGE_RATE
+        value: "0.10"
+      - key: DELIVERY_FEE
+        value: "450"
