@@ -103,6 +103,13 @@ app.post('/api/orders', optionalAuth, asyncHandler(async (req, res) => {
 }));
 app.get('/api/orders/mine', auth, asyncHandler(async (req, res) => res.json(await Order.find({ customer: req.user.id }).sort({ createdAt: -1 }))));
 app.get('/api/orders', auth, permit('admin', 'staff'), asyncHandler(async (req, res) => res.json(await Order.find(req.query.status ? { status: req.query.status } : {}).sort({ createdAt: -1 }).limit(200))));
+app.patch('/api/orders/:id/payment', auth, permit('admin', 'staff'), asyncHandler(async (req, res) => {
+  const allowed = ['pending', 'paid', 'refunded'];
+  if (!allowed.includes(req.body.paymentStatus)) return res.status(400).json({ message: 'Invalid payment status' });
+  const order = await Order.findByIdAndUpdate(req.params.id, { paymentStatus: req.body.paymentStatus, ...(req.body.paymentMethod ? { paymentMethod: req.body.paymentMethod } : {}) }, { new: true, runValidators: true });
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  res.json(order);
+}));
 app.patch('/api/orders/:id/status', auth, permit('admin', 'staff'), asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id);
   if (!order) return res.status(404).json({ message: 'Order not found' });
