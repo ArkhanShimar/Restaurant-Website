@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, ChefHat, Clock, Instagram, Mail, MapPin, Phone, Plus, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChefHat, Clock, Instagram, Mail, MapPin, Phone, Plus, ShoppingBag, Menu as MenuIcon, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { api, money } from '../api';
@@ -9,7 +9,8 @@ import CheckoutCart from '../components/CheckoutCart';
 
 function PublicNav() {
   const { cart, setCartOpen } = useStore();
-  return <nav className="nav public-nav"><Link className="brand" to="/">VELOURA<span>COLOMBO</span></Link><div className="navlinks"><Link to="/about">Our story</Link><Link to="/menu">Full menu</Link><Link to="/contact">Contact</Link><Link to="/#reserve">Reserve</Link></div><button className="icon-btn" onClick={() => setCartOpen(true)}><ShoppingBag />{cart.length > 0 && <i>{cart.reduce((sum, item) => sum + item.quantity, 0)}</i>}</button></nav>;
+  const [open, setOpen] = useState(false);
+  return <><nav className="nav public-nav"><Link className="brand" to="/">VELOURA<span>COLOMBO</span></Link><div className="navlinks"><Link to="/about">Our story</Link><Link to="/menu">Full menu</Link><Link to="/contact">Contact</Link><Link to="/#reserve">Reserve</Link></div><div className="nav-actions"><button className="icon-btn" aria-label="Open cart" onClick={() => setCartOpen(true)}><ShoppingBag />{cart.length > 0 && <i>{cart.reduce((sum, item) => sum + item.quantity, 0)}</i>}</button><button className="mobile-menu" aria-label={open ? 'Close navigation' : 'Open navigation'} aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? <X /> : <MenuIcon />}</button></div></nav>{open && <div className="mobile-nav public-mobile-nav"><Link to="/about">Our story</Link><Link to="/menu">Full menu</Link><Link to="/contact">Contact</Link><Link to="/#reserve">Reserve</Link></div>}</>;
 }
 
 function PageHero({ eyebrow, title, image }: { eyebrow: string; title: React.ReactNode; image: string }) {
